@@ -1,0 +1,21 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = "Fabric"
+            url = "https://maven.fabricmc.net/"
+        }
+        gradlePluginPortal()
+        maven {
+            name = "Gradle Plugin Portal Snapshots"
+            url = "https://plugins.gradle.org/m2/"
+        }
+        maven { url = 'https://maven.minecraftforge.net/' }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'mc-agenticlabs'
+

@@ -1,0 +1,328 @@
+package com.xenchinryu7.mcagenticlabs.client;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.xenchinryu7.mcagenticlabs.AgentsMod;
+import com.xenchinryu7.mcagenticlabs.entity.AgentEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Side-mounted GUI panel for Agent agent interaction.
+ * Inspired by Cursor's composer - slides in/out from the right side.
+ * Now with scrollable message history!
+ */
+public class AgentGUI {
+    private static final int PANEL_WIDTH = 200;
+    private static final int PANEL_PADDING = 6;
+    private static final int ANIMATION_SPEED = 20;
+    private static final int MESSAGE_HEIGHT = 12;
+    private static final int MAX_MESSAGES = 500;
+    
+    private static boolean isOpen = false;
+    private static float slideOffset = PANEL_WIDTH; // Start fully hidden
+    private static EditBox inputBox;
+    private static List<String> commandHistory = new ArrayList<>();
+    private static int historyIndex = -1;
+    
+    // Message history and scrolling
+    private static List<ChatMessage> messages = new ArrayList<>();
+    private static int scrollOffset = 0;
+    private static int maxScroll = 0;
+    private static final int BACKGROUND_COLOR = 0x15202020; // Ultra transparent (15 = ~8% opacity)
+    private static final int BORDER_COLOR = 0x40404040; // More transparent border
+    private static final int HEADER_COLOR = 0x25252525; // More transparent header (~15% opacity)
+    private static final int TEXT_COLOR = 0xFFFFFFFF;
+    
+    // Message bubble colors
+    private static final int USER_BUBBLE_COLOR = 0xC04CAF50; // Green bubble for user
+    private static final int agent_BUBBLE_COLOR = 0xC02196F3; // Blue bubble for agent
+    private static final int SYSTEM_BUBBLE_COLOR = 0xC0FF9800; // Orange bubble for system
+
+    private static class ChatMessage {
+        String sender; // "You", "agent", "Alex", "System", etc.
+        String text;
+        int bubbleColor;
+        boolean isUser; // true if message from user
+        
+        ChatMessage(String sender, String text, int bubbleColor, boolean isUser) {
+            this.sender = sender;
+            this.text = text;
+            this.bubbleColor = bubbleColor;
+            this.isUser = isUser;
+        }
+    }
+
+    public static void toggle() {
+        isOpen = !isOpen;
+        
+        Minecraft mc = Minecraft.getInstance();
+        
+        if (isOpen) {
+            initializeInputBox();
+            mc.setScreen(new agentOverlayScreen());
+            if (inputBox != null) {
+                inputBox.setFocused(true);
+            }
+        } else {
+            if (inputBox != null) {
+                inputBox = null;
+            }
+            if (mc.screen instanceof agentOverlayScreen) {
+                mc.setScreen(null);
+            }
+        }
+    }
+
+    public static boolean isOpen() {
+        return isOpen;
+    }
+
+    private static void initializeInputBox() {
+        Minecraft mc = Minecraft.getInstance();
+        if (inputBox == null) {
+            inputBox = new EditBox(mc.font, 0, 0, PANEL_WIDTH - 20, 20, 
+                Component.literal("Command"));
+            inputBox.setMaxLength(256);
+            inputBox.setHint(Component.literal("Tell Agent what to do..."));
+            inputBox.setFocused(true);
+        }
+    }
+
+    /**
+     * Add a message to the chat history
+     */
+    public static void addMessage(String sender, String text, int bubbleColor, boolean isUser) {
+        messages.add(new ChatMessage(sender, text, bubbleColor, isUser));
+        if (messages.size() > MAX_MESSAGES) {
+            messages.remove(0);
+        }
+        // Auto-scroll to bottom on new message
+        scrollOffset = 0;
+    }
+
+    /**
+     * Add a user command to the history
+     */
+    public static void addUserMessage(String text) {
+        addMessage("You", text, USER_BUBBLE_COLOR, true);
+    }
+
+    /**
+     * Add a Agent response to the history
+     */
+    public static void addagentMessage(String agentName, String text) {
+        addMessage(agentName, text, agent_BUBBLE_COLOR, false);
+    }
+
+    /**
+     * Add a system message to the history
+     */
+    public static void addSystemMessage(String text) {
+        addMessage("System", text, SYSTEM_BUBBLE_COLOR, false);
+    }
+
+    // @SubscribeEvent
+    // public static void onRenderOverlay(RenderGuiOverlayEvent.Post event) {
+    /**
+     * Simple word wrap for text
+     */
+    private static String wrapText(net.minecraft.client.gui.Font font, String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) {
+            return text;
+        }
+        // Simple truncation for now
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            result.append(text.charAt(i));
+            if (font.width(result.toString() + "...") >= maxWidth) {
+                return result.substring(0, result.length() - 3) + "...";
+            }
+        }
+        return result.toString();
+    }
+
+    public static boolean handleKeyPress(int keyCode, int scanCode, int modifiers) {
+        if (!isOpen || inputBox == null) return false;
+
+        Minecraft mc = Minecraft.getInstance();
+        
+        // Escape key - close panel
+        if (keyCode == 256) { // ESC
+            toggle();
+            return true;
+        }
+        
+        // Enter key - send command
+        if (keyCode == 257) {
+            String command = inputBox.getValue().trim();
+            if (!command.isEmpty()) {
+                sendCommand(command);
+                inputBox.setValue("");
+                historyIndex = -1;
+            }
+            return true;
+        }
+
+        // Arrow up - previous command
+        if (keyCode == 265 && !commandHistory.isEmpty()) { // UP
+            if (historyIndex < commandHistory.size() - 1) {
+                historyIndex++;
+                inputBox.setValue(commandHistory.get(commandHistory.size() - 1 - historyIndex));
+            }
+            return true;
+        }
+
+        // Arrow down - next command
+        if (keyCode == 264) { // DOWN
+            if (historyIndex > 0) {
+                historyIndex--;
+                inputBox.setValue(commandHistory.get(commandHistory.size() - 1 - historyIndex));
+            } else if (historyIndex == 0) {
+                historyIndex = -1;
+                inputBox.setValue("");
+            }
+            return true;
+        }
+
+        // Backspace, Delete, Home, End, Left, Right - pass to input box
+        if (keyCode == 259 || keyCode == 261 || keyCode == 268 || keyCode == 269 || 
+            keyCode == 263 || keyCode == 262) {
+            // inputBox.keyPressed(keyCode, scanCode, modifiers);
+            return true;
+        }
+
+        return true; // Consume all keys to prevent game controls
+    }
+
+    public static boolean handleCharTyped(char codePoint, int modifiers) {
+        if (isOpen && inputBox != null) {
+            // inputBox.charTyped(codePoint, modifiers);
+            return true; // Consumed
+        }
+        return false;
+    }
+
+    public static void handleMouseClick(double mouseX, double mouseY, int button) {
+        if (!isOpen) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        int screenWidth = mc.getWindow().getGuiScaledWidth();
+        int screenHeight = mc.getWindow().getGuiScaledHeight();
+
+        if (inputBox != null) {
+            int inputAreaY = screenHeight - 80;
+            if (mouseY >= inputAreaY + 25 && mouseY <= inputAreaY + 45) {
+                inputBox.setFocused(true);
+            } else {
+                inputBox.setFocused(false);
+            }
+        }
+    }
+
+    public static void handleMouseScroll(double scrollDelta) {
+        if (!isOpen) return;
+        
+        int scrollAmount = (int)(scrollDelta * 3 * MESSAGE_HEIGHT);
+        scrollOffset -= scrollAmount;
+        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
+    }
+
+    private static void sendCommand(String command) {
+        Minecraft mc = Minecraft.getInstance();
+        
+        commandHistory.add(command);
+        if (commandHistory.size() > 50) {
+            commandHistory.remove(0);
+        }
+        
+        addUserMessage(command);
+
+        if (command.toLowerCase().startsWith("spawn ")) {
+            String name = command.substring(6).trim();
+            if (name.isEmpty()) name = "agent";
+            if (mc.player != null) {
+                mc.player.connection.sendCommand("Agent spawn " + name);
+                addSystemMessage("Spawning Agent agent: " + name);
+            }
+            return;
+        }
+
+        List<String> targetagents = parseTargetagents(command);
+        
+        if (targetagents.isEmpty()) {
+            var agents = AgentsMod.getAgentsManager().getAllAgents();
+            if (!agents.isEmpty()) {
+                targetagents.add(agents.iterator().next().getAgentName());
+            } else {
+                // No agents available
+                addSystemMessage("No Agent agents found! Use 'spawn <name>' to create one.");
+                return;
+            }
+        }
+
+        // Send command to all targeted agents
+        if (mc.player != null) {
+            for (String agentName : targetagents) {
+                mc.player.connection.sendCommand("Agent tell " + agentName + " " + command);
+            }
+            
+            if (targetagents.size() > 1) {
+                addSystemMessage("→ " + String.join(", ", targetagents) + ": " + command);
+            } else {
+                addSystemMessage("→ " + targetagents.get(0) + ": " + command);
+            }
+        }
+    }
+    
+    private static List<String> parseTargetagents(String command) {
+        List<String> targets = new ArrayList<>();
+        String commandLower = command.toLowerCase();
+        
+        if (commandLower.startsWith("all agents ") || commandLower.startsWith("all ") || 
+            commandLower.startsWith("everyone ") || commandLower.startsWith("everybody ")) {
+            var allagents = AgentsMod.getAgentsManager().getAllAgents();
+            for (AgentEntity agent : allagents) {
+                targets.add(agent.getAgentName());
+            }
+            return targets;
+        }
+        
+        var allagents = AgentsMod.getAgentsManager().getAllAgents();
+        List<String> availableNames = new ArrayList<>();
+        for (AgentEntity agent : allagents) {
+            availableNames.add(agent.getAgentName().toLowerCase());
+        }
+        
+        String[] parts = command.split(",");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            String firstWord = trimmed.split(" ")[0].toLowerCase();
+            
+            if (availableNames.contains(firstWord)) {
+                for (AgentEntity agent : allagents) {
+                    if (agent.getAgentName().equalsIgnoreCase(firstWord)) {
+                        targets.add(agent.getAgentName());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return targets;
+    }
+
+    public static void tick() {
+        if (isOpen && inputBox != null) {
+            // inputBox.tick();
+            // Auto-focus input box when panel is open
+            if (!inputBox.isFocused()) {
+                inputBox.setFocused(true);
+            }
+        }
+    }
+}

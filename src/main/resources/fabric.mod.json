@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "mc-agenticlabs",
+  "version": "1.0.0",
+  "name": "MC AgenticLabs",
+  "description": "AI-controlled Steve entities that can follow natural language commands, mine resources, build structures, and behave like real players using OpenAI.",
+  "authors": [
+    "xenchinryu7"
+  ],
+  "contact": {
+    "homepage": "https://github.com/XenchinRyu7/mc-agenticlabs"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.xenchinryu7.mcagenticlabs.AgentsMod"
+    ],
+    "client": [
+      "com.xenchinryu7.mcagenticlabs.client.AgentsClient"
+    ]
+  },
+  "mixins": [
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "1.21.10",
+    "fabric-api": "*"
+  },
+  "suggests": {
+  }
+}
