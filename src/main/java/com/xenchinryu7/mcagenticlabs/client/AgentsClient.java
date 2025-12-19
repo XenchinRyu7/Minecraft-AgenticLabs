@@ -3,6 +3,8 @@ package com.xenchinryu7.mcagenticlabs.client;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
@@ -17,7 +19,7 @@ import com.xenchinryu7.mcagenticlabs.entity.AgentEntity;
  */
 public class AgentsClient implements ClientModInitializer {
 
-    private static final ResourceLocation agent_TEXTURE = ResourceLocation.withDefaultNamespace("textures/entity/player/wide/agent.png");
+    private static final ResourceLocation agent_TEXTURE = ResourceLocation.parse("mc-agenticlabs:textures/entity/player/agent.png");
 
     @Override
     public void onInitializeClient() {
@@ -54,7 +56,7 @@ public class AgentsClient implements ClientModInitializer {
 
         @Override
         public ResourceLocation getTextureLocation(HumanoidRenderState state) {
-            return ResourceLocation.parse("minecraft:textures/entity/player/steve.png");
+            return agent_TEXTURE;
         }
     }
 }

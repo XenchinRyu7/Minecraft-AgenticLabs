@@ -25,7 +25,7 @@ public class AgentGUI {
     
     private static boolean isOpen = false;
     private static float slideOffset = PANEL_WIDTH; // Start fully hidden
-    private static EditBox inputBox;
+    public static EditBox inputBox;
     private static List<String> commandHistory = new ArrayList<>();
     private static int historyIndex = -1;
     
@@ -69,12 +69,17 @@ public class AgentGUI {
                 inputBox.setFocused(true);
             }
         } else {
-            if (inputBox != null) {
-                inputBox = null;
-            }
+            close();
             if (mc.screen instanceof agentOverlayScreen) {
                 mc.setScreen(null);
             }
+        }
+    }
+
+    public static void close() {
+        isOpen = false;
+        if (inputBox != null) {
+            inputBox = null;
         }
     }
 
@@ -146,6 +151,45 @@ public class AgentGUI {
         return result.toString();
     }
 
+    public static void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (!isOpen) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        int screenWidth = mc.getWindow().getGuiScaledWidth();
+        int screenHeight = mc.getWindow().getGuiScaledHeight();
+
+        // Animate slide
+        if (slideOffset > 0) {
+            slideOffset = Math.max(0, slideOffset - ANIMATION_SPEED);
+        }
+
+        int panelX = screenWidth - PANEL_WIDTH + (int)slideOffset;
+
+        // Draw background
+        graphics.fill(panelX, 0, screenWidth, screenHeight, BACKGROUND_COLOR);
+
+        // Draw header
+        graphics.fill(panelX, 0, screenWidth, 20, HEADER_COLOR);
+        graphics.drawString(mc.font, "Agent AI", panelX + PANEL_PADDING, 6, TEXT_COLOR, false);
+
+        // Draw messages
+        int y = 25;
+        for (int i = Math.max(0, messages.size() - 1 - scrollOffset); i < messages.size() && y < screenHeight - 30; i++) {
+            ChatMessage msg = messages.get(i);
+            String wrapped = wrapText(mc.font, msg.sender + ": " + msg.text, PANEL_WIDTH - 20);
+            graphics.drawString(mc.font, wrapped, panelX + PANEL_PADDING, y, TEXT_COLOR, false);
+            y += MESSAGE_HEIGHT;
+        }
+
+        // Draw input box
+        if (inputBox != null) {
+            inputBox.setX(panelX + PANEL_PADDING);
+            inputBox.setY(screenHeight - 25);
+            inputBox.setWidth(PANEL_WIDTH - 20);
+            inputBox.render(graphics, mouseX, mouseY, partialTick);
+        }
+    }
+
     public static boolean handleKeyPress(int keyCode, int scanCode, int modifiers) {
         if (!isOpen || inputBox == null) return false;
 
@@ -189,10 +233,9 @@ public class AgentGUI {
             return true;
         }
 
-        // Backspace, Delete, Home, End, Left, Right - pass to input box
+        // Backspace, Delete, Home, End, Left, Right - handled by EditBox widget automatically
         if (keyCode == 259 || keyCode == 261 || keyCode == 268 || keyCode == 269 || 
             keyCode == 263 || keyCode == 262) {
-            // inputBox.keyPressed(keyCode, scanCode, modifiers);
             return true;
         }
 
@@ -200,8 +243,9 @@ public class AgentGUI {
     }
 
     public static boolean handleCharTyped(char codePoint, int modifiers) {
-        if (isOpen && inputBox != null) {
-            // inputBox.charTyped(codePoint, modifiers);
+        // Character input is handled automatically by the EditBox widget
+        // when it's properly added to the Screen (done in agentOverlayScreen.init())
+        if (isOpen && inputBox != null && inputBox.isFocused()) {
             return true; // Consumed
         }
         return false;
@@ -318,7 +362,7 @@ public class AgentGUI {
 
     public static void tick() {
         if (isOpen && inputBox != null) {
-            // inputBox.tick();
+            // EditBox doesn't have tick() in 1.21.10
             // Auto-focus input box when panel is open
             if (!inputBox.isFocused()) {
                 inputBox.setFocused(true);

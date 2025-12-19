@@ -52,7 +52,7 @@ public class StructureTemplateLoader {
             this.depth = depth;
         }
     }
-    
+        
     /**
      * Load a structure from an NBT file (either custom or Minecraft's native format)
      */

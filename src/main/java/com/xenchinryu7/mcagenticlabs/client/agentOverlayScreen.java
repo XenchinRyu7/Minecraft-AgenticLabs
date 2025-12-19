@@ -14,19 +14,31 @@ public class agentOverlayScreen extends Screen {
         super(Component.literal("Agent AI"));
     }
 
+    @Override
+    protected void init() {
+        super.init();
+        if (AgentGUI.inputBox != null) {
+            this.addWidget(AgentGUI.inputBox);
+            this.setFocused(AgentGUI.inputBox);
+        }
+    }
+
     public boolean isPauseScreen() {
         return false; // Don't pause the game
     }
 
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Don't render anything - the AgentGUI renders via overlay
-        // This screen is just to capture input
+        // Render the blur/darkening background first
+        super.render(graphics, mouseX, mouseY, partialTick);
+        // Then render the AgentGUI on top
+        AgentGUI.render(graphics, mouseX, mouseY, partialTick);
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         // K key to close (only if no modifiers pressed)
         if (keyCode == 75 && modifiers == 0) { // K
-            AgentGUI.toggle();
+            AgentGUI.close();
             if (minecraft != null) {
                 minecraft.setScreen(null);
             }
@@ -53,9 +65,7 @@ public class agentOverlayScreen extends Screen {
 
     public void removed() {
         // Clean up when screen is closed
-        if (AgentGUI.isOpen()) {
-            AgentGUI.toggle();
-        }
+        // No need to call toggle() here as it's handled in keyPressed
     }
 }
 

@@ -12,11 +12,13 @@ public class TaskPlanner {
     private final OpenAIClient openAIClient;
     private final GeminiClient geminiClient;
     private final GroqClient groqClient;
+    private final OllamaClient ollamaClient;
 
     public TaskPlanner() {
         this.openAIClient = new OpenAIClient();
         this.geminiClient = new GeminiClient();
         this.groqClient = new GroqClient();
+        this.ollamaClient = new OllamaClient();
     }
 
     public ResponseParser.ParsedResponse planTasks(AgentEntity agent, String command) {
@@ -25,7 +27,7 @@ public class TaskPlanner {
             WorldKnowledge worldKnowledge = new WorldKnowledge(agent);
             String userPrompt = PromptBuilder.buildUserPrompt(agent, command, worldKnowledge);
             
-            String provider = AgentConfig.AI_PROVIDER.get().toLowerCase();
+            String provider = "ollama";
             AgentsMod.LOGGER.info("Requesting AI plan for Agent '{}' using {}: {}", agent.getAgentName(), provider, command);
             
             String response = getAIResponse(provider, systemPrompt, userPrompt);
@@ -55,15 +57,16 @@ public class TaskPlanner {
             case "groq" -> groqClient.sendRequest(systemPrompt, userPrompt);
             case "gemini" -> geminiClient.sendRequest(systemPrompt, userPrompt);
             case "openai" -> openAIClient.sendRequest(systemPrompt, userPrompt);
+            case "ollama" -> ollamaClient.sendRequest(systemPrompt, userPrompt);
             default -> {
-                AgentsMod.LOGGER.warn("Unknown AI provider '{}', using Groq", provider);
-                yield groqClient.sendRequest(systemPrompt, userPrompt);
+                AgentsMod.LOGGER.warn("Unknown AI provider '{}', using Ollama", provider);
+                yield ollamaClient.sendRequest(systemPrompt, userPrompt);
             }
         };
         
-        if (response == null && !provider.equals("groq")) {
-            AgentsMod.LOGGER.warn("{} failed, trying Groq as fallback", provider);
-            response = groqClient.sendRequest(systemPrompt, userPrompt);
+        if (response == null && !provider.equals("ollama")) {
+            AgentsMod.LOGGER.warn("{} failed, trying Ollama as fallback", provider);
+            response = ollamaClient.sendRequest(systemPrompt, userPrompt);
         }
         
         return response;

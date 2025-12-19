@@ -19,8 +19,8 @@ public class AgentConfig {
         builder.comment("AI API Configuration").push("ai");
         
         AI_PROVIDER = builder
-            .comment("AI provider to use: 'groq' (FASTEST, FREE), 'openai', or 'gemini'")
-            .define("provider", "groq");
+            .comment("AI provider to use: 'groq' (FASTEST, FREE), 'openai', 'gemini', or 'ollama' (LOCAL)")
+            .define("provider", "ollama");
         
         builder.pop();
 

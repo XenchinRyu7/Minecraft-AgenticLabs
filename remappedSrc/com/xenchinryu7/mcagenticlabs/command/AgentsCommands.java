@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.xenchinryu7.mcagenticlabs.AgentsMod;
+import com.xenchinryu7.mcagenticlabs.ai.TaskPlanner;
 import com.xenchinryu7.mcagenticlabs.entity.AgentEntity;
 import com.xenchinryu7.mcagenticlabs.entity.AgentsManager;
 import net.minecraft.commands.CommandSourceStack;
@@ -31,6 +32,16 @@ public class AgentsCommands {
                 .then(Commands.argument("name", StringArgumentType.string())
                     .then(Commands.argument("command", StringArgumentType.greedyString())
                         .executes(agentCommands::tellAgent))))
+            .then(Commands.literal("provider")
+                .then(Commands.argument("provider", StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        builder.suggest("ollama");
+                        builder.suggest("groq");
+                        builder.suggest("openai");
+                        builder.suggest("gemini");
+                        return builder.buildFuture();
+                    })
+                    .executes(agentCommands::setProvider)))
         );
     }
 
@@ -131,6 +142,21 @@ public class AgentsCommands {
             source.sendFailure(Component.literal("Agent not found: " + name));
             return 0;
         }
+    }
+
+    private static int setProvider(CommandContext<CommandSourceStack> context) {
+        String provider = StringArgumentType.getString(context, "provider");
+        CommandSourceStack source = context.getSource();
+        
+        try {
+            TaskPlanner.setProvider(provider);
+            source.sendSuccess(() -> Component.literal("AI provider set to: " + provider), true);
+            AgentsMod.LOGGER.info("Provider set to {} by {}", provider, source.getTextName());
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error setting provider: " + e.getMessage()));
+            AgentsMod.LOGGER.error("Error setting provider", e);
+        }
+        return 1;
     }
 }
 
