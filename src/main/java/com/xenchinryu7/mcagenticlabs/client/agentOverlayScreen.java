@@ -21,6 +21,10 @@ public class agentOverlayScreen extends Screen {
             this.addWidget(AgentGUI.inputBox);
             this.setFocused(AgentGUI.inputBox);
         }
+        // Add Send button widget - it will handle clicks automatically!
+        if (AgentGUI.sendButton != null) {
+            this.addRenderableWidget(AgentGUI.sendButton);
+        }
     }
 
     public boolean isPauseScreen() {
@@ -45,6 +49,20 @@ public class agentOverlayScreen extends Screen {
             return true;
         }
         
+        // CRITICAL: Check Enter key FIRST before widget consumes it
+        // Enter key (257 or GLFW_KEY_ENTER) - send command
+        if (keyCode == 257 || keyCode == 335) { // ENTER or NUMPAD_ENTER
+            if (AgentGUI.inputBox != null && AgentGUI.inputBox.isFocused()) {
+                String command = AgentGUI.inputBox.getValue().trim();
+                if (!command.isEmpty()) {
+                    AgentGUI.sendCommandFromScreen(command);
+                    AgentGUI.inputBox.setValue("");
+                    return true;
+                }
+            }
+        }
+        
+        // Delegate other keys to AgentGUI
         return AgentGUI.handleKeyPress(keyCode, scanCode, modifiers);
     }
 
@@ -54,6 +72,8 @@ public class agentOverlayScreen extends Screen {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Button widget handles its own clicks automatically via addRenderableWidget()
+        // Just handle input box focus
         AgentGUI.handleMouseClick(mouseX, mouseY, button);
         return true;
     }

@@ -6,6 +6,7 @@ import com.xenchinryu7.mcagenticlabs.entity.AgentEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
@@ -22,10 +23,13 @@ public class AgentGUI {
     private static final int ANIMATION_SPEED = 20;
     private static final int MESSAGE_HEIGHT = 12;
     private static final int MAX_MESSAGES = 500;
+    private static final int BUTTON_WIDTH = 40;
+    private static final int INPUT_HEIGHT = 20;
     
     private static boolean isOpen = false;
     private static float slideOffset = PANEL_WIDTH; // Start fully hidden
     public static EditBox inputBox;
+    public static Button sendButton; // Use native Button widget
     private static List<String> commandHistory = new ArrayList<>();
     private static int historyIndex = -1;
     
@@ -90,11 +94,31 @@ public class AgentGUI {
     private static void initializeInputBox() {
         Minecraft mc = Minecraft.getInstance();
         if (inputBox == null) {
-            inputBox = new EditBox(mc.font, 0, 0, PANEL_WIDTH - 20, 20, 
+            // Reduce width to make room for Send button on the right
+            inputBox = new EditBox(mc.font, 0, 0, PANEL_WIDTH - BUTTON_WIDTH - 30, INPUT_HEIGHT, 
                 Component.literal("Command"));
             inputBox.setMaxLength(256);
             inputBox.setHint(Component.literal("Tell Agent what to do..."));
             inputBox.setFocused(true);
+        }
+        
+        // Initialize Send button if needed
+        if (sendButton == null) {
+            sendButton = Button.builder(Component.literal("Send"), button -> {
+                // Button click handler - this runs when button is clicked!
+                if (inputBox != null) {
+                    String command = inputBox.getValue().trim();
+                    if (!command.isEmpty()) {
+                        sendCommand(command);
+                        inputBox.setValue("");
+                        addSystemMessage("Command sent!");
+                    } else {
+                        addSystemMessage("Cannot send empty command!");
+                    }
+                }
+            })
+            .bounds(0, 0, BUTTON_WIDTH, INPUT_HEIGHT)
+            .build();
         }
     }
 
@@ -181,12 +205,21 @@ public class AgentGUI {
             y += MESSAGE_HEIGHT;
         }
 
-        // Draw input box
+        // Draw input box and Send button
         if (inputBox != null) {
             inputBox.setX(panelX + PANEL_PADDING);
             inputBox.setY(screenHeight - 25);
-            inputBox.setWidth(PANEL_WIDTH - 20);
+            inputBox.setWidth(PANEL_WIDTH - BUTTON_WIDTH - 30);
             inputBox.render(graphics, mouseX, mouseY, partialTick);
+            
+            // Position Send button next to input box
+            if (sendButton != null) {
+                sendButton.setX(panelX + PANEL_PADDING + inputBox.getWidth() + 4);
+                sendButton.setY(screenHeight - 25);
+                sendButton.setWidth(BUTTON_WIDTH);
+                sendButton.setHeight(INPUT_HEIGHT);
+                sendButton.render(graphics, mouseX, mouseY, partialTick);
+            }
         }
     }
 
@@ -258,6 +291,7 @@ public class AgentGUI {
         int screenWidth = mc.getWindow().getGuiScaledWidth();
         int screenHeight = mc.getWindow().getGuiScaledHeight();
 
+        // Handle input box focus (Button widget handles its own clicks)
         if (inputBox != null) {
             int inputAreaY = screenHeight - 80;
             if (mouseY >= inputAreaY + 25 && mouseY <= inputAreaY + 45) {
@@ -276,6 +310,13 @@ public class AgentGUI {
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
     }
 
+    /**
+     * Public wrapper for sending commands from the overlay screen
+     */
+    public static void sendCommandFromScreen(String command) {
+        sendCommand(command);
+    }
+
     private static void sendCommand(String command) {
         Minecraft mc = Minecraft.getInstance();
         
@@ -290,40 +331,53 @@ public class AgentGUI {
             String name = command.substring(6).trim();
             if (name.isEmpty()) name = "agent";
             if (mc.player != null) {
-                mc.player.connection.sendCommand("Agent spawn " + name);
-                addSystemMessage("Spawning Agent agent: " + name);
+                mc.player.connection.sendCommand("agents spawn " + name);
+                addSystemMessage("Spawning Agent: " + name);
             }
             return;
         }
 
-        List<String> targetagents = parseTargetagents(command);
+        List<String> targetAgents = parseTargetAgents(command);
         
-        if (targetagents.isEmpty()) {
+        // Strip "all agents" or "everyone" prefix from command if present
+        String actualCommand = command;
+        String lowerCommand = command.toLowerCase();
+        if (lowerCommand.startsWith("all agents ")) {
+            actualCommand = command.substring(11).trim(); // Remove "all agents "
+        } else if (lowerCommand.startsWith("all ")) {
+            actualCommand = command.substring(4).trim(); // Remove "all "
+        } else if (lowerCommand.startsWith("everyone ")) {
+            actualCommand = command.substring(9).trim(); // Remove "everyone "
+        } else if (lowerCommand.startsWith("everybody ")) {
+            actualCommand = command.substring(10).trim(); // Remove "everybody "
+        }
+        
+        if (targetAgents.isEmpty()) {
             var agents = AgentsMod.getAgentsManager().getAllAgents();
             if (!agents.isEmpty()) {
-                targetagents.add(agents.iterator().next().getAgentName());
+                targetAgents.add(agents.iterator().next().getAgentName());
             } else {
                 // No agents available
-                addSystemMessage("No Agent agents found! Use 'spawn <name>' to create one.");
+                addSystemMessage("No agents found! Use 'spawn <name>' to create one.");
                 return;
             }
         }
 
         // Send command to all targeted agents
         if (mc.player != null) {
-            for (String agentName : targetagents) {
-                mc.player.connection.sendCommand("Agent tell " + agentName + " " + command);
+            for (String agentName : targetAgents) {
+                mc.player.connection.sendCommand("agents tell " + agentName + " " + actualCommand);
             }
             
-            if (targetagents.size() > 1) {
-                addSystemMessage("→ " + String.join(", ", targetagents) + ": " + command);
+            if (targetAgents.size() > 1) {
+                addSystemMessage("→ " + String.join(", ", targetAgents) + ": " + actualCommand);
             } else {
-                addSystemMessage("→ " + targetagents.get(0) + ": " + command);
+                addSystemMessage("→ " + targetAgents.get(0) + ": " + actualCommand);
             }
         }
     }
     
-    private static List<String> parseTargetagents(String command) {
+    private static List<String> parseTargetAgents(String command) {
         List<String> targets = new ArrayList<>();
         String commandLower = command.toLowerCase();
         
